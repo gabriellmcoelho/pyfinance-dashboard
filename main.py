@@ -4,6 +4,7 @@ import datetime
 import random
 import tkinter as tk
 from tkinter import ttk
+import webbrowser
 import requests
 import pandas as pd
 from io import StringIO
@@ -116,6 +117,18 @@ def plot_stock_chart(symbol, stock_data):
         tk_chart.get_tk_widget().destroy()  # Destroy the previous chart
     tk_chart = FigureCanvasTkAgg(plt.gcf(), master=canvas)
     tk_chart.draw()
+    
+    # Destroy the existing button (if any) before creating a new one
+    try:
+        more_info_button.destroy()  # Assuming the button's name is 'more_info_button'
+    except:
+        pass  # Ignore if the button doesn't exist
+
+    # Create a button with a link to the stock information website
+    yahoo_finance_url = f"https://finance.yahoo.com/quote/{symbol}"
+    more_info_button = ttk.Button(canvas, text=f"More about {symbol}", command=lambda: webbrowser.open(yahoo_finance_url))
+    more_info_button.pack(side=tk.BOTTOM, fill=tk.X)
+  
     tk_chart.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
 # Function to choose the language and open the main interface
