@@ -1,15 +1,13 @@
-# Copyright (c) 2024 Gabriel L M Coelho
-
 import datetime
 import random
 import tkinter as tk
 from tkinter import ttk
-import webbrowser
 import requests
 import pandas as pd
 from io import StringIO
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import threading
 
 # Variable to store the Tkinter chart
 tk_chart = None
@@ -28,15 +26,34 @@ def fetch_stock_list():
 
     load_data(data)
 
+# Function to fetch the current price of a stock from Alpha Vantage API
+def fetch_current_price(symbol):
+    api_key = 'RDHN0ZBMJFQPR6XT'
+    url = f'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={api_key}'
+    response = requests.get(url)
+    data = response.json()
+    try:
+        price = data['Global Quote']['05. price']
+    except KeyError:
+        price = 'N/A'
+    return price
+
 # Function to load data into Treeview
 def load_data(data):
     global df
     df = pd.read_csv(StringIO(data))
     for item in tree.get_children():
         tree.delete(item)
-    for index, row in df.iterrows():
-        tree.insert("", "end", values=(row['symbol'], row['name'], row['exchange'], row['assetType'], row['ipoDate'], row['delistingDate'], row['status']))
-    loading_label.grid_forget()  # Remove the loading message after data is loaded
+    
+    # Use threading to fetch current prices asynchronously
+    def insert_rows():
+        for index, row in df.iterrows():
+            current_price = fetch_current_price(row['symbol'])
+            tree.insert("", "end", values=(row['symbol'], row['name'], row['exchange'], row['assetType'], row['ipoDate'], row['delistingDate'], row['status'], current_price))
+        loading_label.grid_forget()  # Remove the loading message after data is loaded
+
+    thread = threading.Thread(target=insert_rows)
+    thread.start()
 
 # Function to create the main interface
 def create_main_interface():
@@ -53,10 +70,10 @@ def create_main_interface():
     frame = ttk.Frame(root, padding="10")
     frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-    columns = ("symbol", "name", "exchange", "assetType", "ipoDate", "delistingDate", "status")
+    columns = ("symbol", "name", "exchange", "assetType", "ipoDate", "delistingDate", "status", "currentPrice")
     column_headers = {
-        "English": ["Symbol", "Name", "Exchange", "Asset Type", "IPO Date", "Delisting Date", "Status"],
-        "Portuguese": ["Símbolo", "Nome", "Bolsa", "Tipo de Ativo", "Data IPO", "Data de Retirada", "Status"]
+        "English": ["Symbol", "Name", "Exchange", "Asset Type", "IPO Date", "Delisting Date", "Status", "Current Price"],
+        "Portuguese": ["Símbolo", "Nome", "Bolsa", "Tipo de Ativo", "Data IPO", "Data de Retirada", "Status", "Preço Atual"]
     }
 
     tree = ttk.Treeview(frame, columns=columns, show='headings')
@@ -91,7 +108,6 @@ def show_stock_chart(event):
         plot_stock_chart(selected_symbol, stock_data)
 
 def get_stock_data(symbol):
-    
     end_date = datetime.date.today()
     start_date = end_date - datetime.timedelta(days=5*365)  # The lest five year
     num_points = 50
@@ -117,18 +133,6 @@ def plot_stock_chart(symbol, stock_data):
         tk_chart.get_tk_widget().destroy()  # Destroy the previous chart
     tk_chart = FigureCanvasTkAgg(plt.gcf(), master=canvas)
     tk_chart.draw()
-    
-    # Destroy the existing button (if any) before creating a new one
-    try:
-        more_info_button.destroy()  # Assuming the button's name is 'more_info_button'
-    except:
-        pass  # Ignore if the button doesn't exist
-
-    # Create a button with a link to the stock information website
-    yahoo_finance_url = f"https://finance.yahoo.com/quote/{symbol}"
-    more_info_button = ttk.Button(canvas, text=f"More about {symbol}", command=lambda: webbrowser.open(yahoo_finance_url))
-    more_info_button.pack(side=tk.BOTTOM, fill=tk.X)
-  
     tk_chart.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
 # Function to choose the language and open the main interface
